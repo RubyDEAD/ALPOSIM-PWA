@@ -1,50 +1,36 @@
-'use client'
+'use client';
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { FetchProducts, DeleteProduct } from "@/src/api/product";
 import { FetchCategories } from "@/src/api/category";
+import { Product, Category } from "@/src/types/types";
 
-interface Category {
-  id: number;
-  name: string;
-}
+import InventoryFilters from "@/src/app/components/inventory/InventoryFilters";
+import ProductTable from "@/src/app/components/inventory/ProductTable";
+import LoadingSkeleton from "@/src/app/components/inventory/LoadingSkeleton";
+import DeleteModal from "@/src/app/components/inventory/DeleteModal";
+import ViewTabs from "@/src/app/components/inventory/ViewTabs";
+import { Package, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
 
-interface Product {
-  id: string;
-  productCode: string;
-  name: string;
-  categoryId: number;
-  category?: Category;
-  imageUrl: string;
-  quantity: number;
-  minQuantity: number;
-  status: string;
-  originalPrice: number;
-  sellingPrice: number;
-  metric: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-const STATUS_COLORS: Record<string, string> = {
-  Critical: "bg-red-500/10 text-red-400 border border-red-500/20",
-  Low: "bg-orange-500/10 text-orange-400 border border-orange-500/20",
-  Normal: "bg-blue-500/10 text-blue-400 border border-blue-500/20",
-  High: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
-};
-
-export default function InventoryClientPage() {
+export default function InventoryPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Filters — all owned here, passed down as props
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
+  const [stockLevel, setStockLevel] = useState("All");
   const [categoryFilter, setCategoryFilter] = useState("All");
+  const [activeTab, setActiveTab] = useState("all");
+
+  // Delete flow
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    const load = async () => {
+    const loadData = async () => {
       try {
         const [productRes, categoryRes] = await Promise.all([
           FetchProducts(),
@@ -52,24 +38,32 @@ export default function InventoryClientPage() {
         ]);
         setProducts(productRes.data);
         setCategories(categoryRes.data);
-      } catch (err) {
-        console.error("Failed to load data", err);
+      } catch (error) {
+        console.error("Failed to load data", error);
       } finally {
         setLoading(false);
       }
     };
-    load();
+    loadData();
   }, []);
 
-  const filtered = products.filter((p) => {
-    const matchSearch =
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.productCode.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = statusFilter === "All" || p.status === statusFilter;
-    const matchCategory =
-      categoryFilter === "All" || p.categoryId === Number(categoryFilter);
-    return matchSearch && matchStatus && matchCategory;
-  });
+  const filteredProducts = useMemo(() => {
+    return products.filter((product) => {
+      const matchSearch =
+        product.name.toLowerCase().includes(search.toLowerCase()) ||
+        product.productCode.toLowerCase().includes(search.toLowerCase());
+
+      const matchStock =
+        stockLevel === "All" ||
+        (stockLevel === "Low" && product.quantity <= product.minQuantity) ||
+        (stockLevel === "Good" && product.quantity > product.minQuantity);
+
+      const matchCategory =
+        categoryFilter === "All" || product.categoryId === Number(categoryFilter);
+
+      return matchSearch && matchStock && matchCategory;
+    });
+  }, [products, search, stockLevel, categoryFilter]);
 
   const handleDelete = async () => {
     if (!deleteId) return;
@@ -78,177 +72,75 @@ export default function InventoryClientPage() {
       await DeleteProduct(deleteId);
       setProducts((prev) => prev.filter((p) => p.id !== deleteId));
       setDeleteId(null);
-    } catch {
-      console.error("Failed to delete product");
+    } catch (error) {
+      console.error("Failed to delete product", error);
     } finally {
       setDeleting(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#0f0f0f] text-white px-6 py-8">
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
 
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <p className="text-xs font-mono tracking-[0.3em] text-[#f59e0b] uppercase mb-1">
-            Stock Management
-          </p>
-          <h1 className="text-3xl font-bold tracking-tight">Inventory</h1>
-        </div>
-        <a
-          href="/inventory/add"
-          className="bg-[#f59e0b] hover:bg-[#d97706] text-black font-semibold px-5 py-2.5 rounded-lg text-sm transition"
-        >
-          + Add Product
-        </a>
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-wrap gap-3 mb-6">
-        <input
-          type="text"
-          placeholder="Search by name or code..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="bg-[#1a1a1a] border border-[#2a2a2a] text-white placeholder-[#4b5563] rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-[#f59e0b] w-64"
-        />
-
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="bg-[#1a1a1a] border border-[#2a2a2a] text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-[#f59e0b]"
-        >
-          <option value="All">All Status</option>
-          <option value="Critical">Critical</option>
-          <option value="Low">Low</option>
-          <option value="Normal">Normal</option>
-          <option value="High">High</option>
-        </select>
-
-        <select
-          value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value)}
-          className="bg-[#1a1a1a] border border-[#2a2a2a] text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-[#f59e0b]"
-        >
-          <option value="All">All Categories</option>
-          {categories.map((cat) => (
-            <option key={cat.id} value={cat.id}>
-              {cat.name}
-            </option>
-          ))}
-        </select>
-
-        <span className="ml-auto text-sm text-[#6b7280] self-center">
-          {filtered.length} product{filtered.length !== 1 ? "s" : ""}
-        </span>
-      </div>
-
-      {/* Table */}
-      <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-2xl overflow-hidden">
-        {loading ? (
-          <div className="flex items-center justify-center py-20 text-[#6b7280] text-sm">
-            Loading inventory...
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-[#6b7280]">
-            <p className="text-sm">No products found.</p>
-            <a href="/inventory/add" className="text-[#f59e0b] text-sm mt-2 hover:underline">
-              Add your first product
-            </a>
-          </div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[#2a2a2a] text-[#6b7280] text-xs uppercase tracking-widest">
-                <th className="text-left px-6 py-4">Code</th>
-                <th className="text-left px-6 py-4">Name</th>
-                <th className="text-left px-6 py-4">Category</th>
-                <th className="text-left px-6 py-4">Qty</th>
-                <th className="text-left px-6 py-4">Status</th>
-                <th className="text-left px-6 py-4">Price</th>
-                <th className="text-left px-6 py-4">Selling</th>
-                <th className="text-left px-6 py-4">Metric</th>
-                <th className="px-6 py-4"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((product, i) => (
-                <tr
-                  key={product.id}
-                  className={`border-b border-[#2a2a2a] hover:bg-[#222222] transition ${
-                    i === filtered.length - 1 ? "border-b-0" : ""
-                  }`}
-                >
-                  <td className="px-6 py-4 font-mono text-[#f59e0b] text-xs">
-                    {product.productCode}
-                  </td>
-                  <td className="px-6 py-4 font-medium">{product.name}</td>
-                  <td className="px-6 py-4 text-[#9ca3af]">
-                    {categories.find((c) => c.id === product.categoryId)?.name ?? "—"}
-                  </td>
-                
-                  <td className="px-6 py-4">
-                    <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${STATUS_COLORS[product.status] ?? ""}`}>
-                      {product.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-[#9ca3af]">
-                    ₱{product.originalPrice.toLocaleString()}
-                  </td>
-                  <td className="px-6 py-4 font-medium">
-                    ₱{product.sellingPrice.toLocaleString()}
-                  </td>
-                  <td className="px-6 py-4 text-[#6b7280] text-xs">{product.metric}</td>
-                  <td className="px-6 py-4">
-                    <div className="flex gap-2 justify-end">
-                      <a
-                        href={`/inventory/${product.id}/edit`}
-                        className="text-xs px-3 py-1.5 bg-[#2a2a2a] hover:bg-[#333333] rounded-lg transition"
-                      >
-                        Edit
-                      </a>
-                      <button
-                        onClick={() => setDeleteId(product.id)}
-                        className="text-xs px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {/* Delete Confirmation Modal */}
-      {deleteId && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-2xl p-8 max-w-sm w-full mx-4">
-            <h2 className="text-lg font-semibold mb-2">Delete product?</h2>
-            <p className="text-[#6b7280] text-sm mb-6">
-              This action cannot be undone. The product will be permanently removed.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setDeleteId(null)}
-                className="flex-1 bg-[#2a2a2a] hover:bg-[#333333] text-white py-2.5 rounded-lg text-sm transition"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDelete}
-                disabled={deleting}
-                className="flex-1 bg-red-500 hover:bg-red-600 disabled:bg-red-900 text-white py-2.5 rounded-lg text-sm transition"
-              >
-                {deleting ? "Deleting..." : "Delete"}
-              </button>
+        {/* Page header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center">
+              <Package className="w-4 h-4 text-amber-500" />
+            </div>
+            <div>
+              <h1 className="text-[15px] font-semibold text-foreground">Inventory</h1>
+              <p className="text-[12px] text-muted-foreground">
+                {loading ? "Loading…" : `${filteredProducts.length} product${filteredProducts.length !== 1 ? "s" : ""}`}
+              </p>
             </div>
           </div>
+
+          <Link href="/inventory/add">
+            <Button size="sm" className="gap-1.5 text-[13px] bg-amber-500 hover:bg-amber-600 text-white rounded-lg h-8">
+              <Plus className="w-3.5 h-3.5" />
+              Add product
+            </Button>
+          </Link>
         </div>
-      )}
+
+        {/* Main card */}
+        <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
+          <div className="p-4 space-y-3">
+
+    
+
+            <InventoryFilters
+              search={search}
+              onSearchChange={setSearch}
+              stockLevel={stockLevel}
+              onStockLevelChange={setStockLevel}
+              categoryFilter={categoryFilter}
+              onCategoryChange={setCategoryFilter}
+              categories={categories}
+            />
+          </div>
+
+          {loading ? (
+            <LoadingSkeleton rows={8} />
+          ) : (
+            <ProductTable
+              products={filteredProducts}
+              categories={categories}
+              onDelete={setDeleteId}
+            />
+          )}
+        </div>
+
+      </div>
+
+      <DeleteModal
+        isOpen={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        onConfirm={handleDelete}
+        isDeleting={deleting}
+      />
     </div>
   );
 }
