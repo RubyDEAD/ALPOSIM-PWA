@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import axios from "axios";
 import { LoginSchema, LoginInput } from "@/src/schema/schema";
+import Cookies from "js-cookie";
 
 export default function LoginPageClient() {
   const router = useRouter();
@@ -26,9 +27,9 @@ export default function LoginPageClient() {
       );
 
       const { token, username, role } = response.data;
-      localStorage.setItem("token", token);
-      localStorage.setItem("username", username);
-      localStorage.setItem("role", role);
+      Cookies.set("token", token);
+      Cookies.set("username", username);
+      Cookies.set("role", role);
 
       router.push("/dashboard");
     } catch {
@@ -43,7 +44,7 @@ export default function LoginPageClient() {
         {/* Brand */}
         <div className="mb-10 text-center">
           <span className="inline-block text-xs font-mono tracking-[0.3em] text-[#f59e0b] uppercase mb-3">
-            Hardware POS
+            Hardware POS+IM
           </span>
           <h1 className="text-4xl font-bold text-white tracking-tight">
             alposim
