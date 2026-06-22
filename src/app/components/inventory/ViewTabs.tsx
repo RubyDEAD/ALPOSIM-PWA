@@ -49,8 +49,7 @@ export default function ViewTabs({
         onClick={onViewSettings}
         className="text-muted-foreground gap-1.5 h-auto pb-2.5 text-[12px]"
       >
-        <Eye className="w-3.5 h-3.5" />
-        View settings
+      
       </Button>
     </div>
   );

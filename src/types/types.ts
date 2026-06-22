@@ -31,7 +31,7 @@ export interface Product {
 export interface ProductRequest {
   name: string;
   categoryId: number;
-  imageUrl?: string;
+  imageUrl: string;
   quantity: number;
   minQuantity: number;
   originalPrice: number;

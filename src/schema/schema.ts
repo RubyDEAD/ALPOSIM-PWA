@@ -14,7 +14,7 @@ export const RegisterSchema = z.object({
 export const ProductSchema = z.object({
     name: z.string().min(1, "Invalid Product Name"),
     categoryId: z.number().min(1, "Category is required"),
-    imageUrl: z.string().optional(),
+    imageUrl: z.string(),
     quantity: z.number().min(0, "Product Quantity must be 0 or more"),
     minQuantity: z.number().min(0, "Product Minimum Quantity must be 0 or more"),
     originalPrice: z.number().min(0, "Product Price must be 0 or more"),
