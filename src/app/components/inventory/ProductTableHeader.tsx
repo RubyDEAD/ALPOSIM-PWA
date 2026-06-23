@@ -41,10 +41,12 @@ export default function ProductTableHeader({ sortField, sortDir, onSort }: Produ
         <TableHead className="w-[15%]">
           <SortButton field="stock" label="Current stock" />
         </TableHead>
+        <TableHead className="w-[16%] text-right text-[11px] text-muted-foreground font-medium">
+          Metric
+        </TableHead>
         <TableHead className="w-[11%] text-right">
           <SortButton field="price" label="Unit price" />
         </TableHead>
-        <TableHead className="w-[5%]" />
       </TableRow>
     </TableHeader>
   );

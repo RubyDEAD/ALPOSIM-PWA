@@ -13,8 +13,8 @@ export const FetchProductbyName = (name: string) =>
 export const FetchProductbyStatus = (status: string) =>
     api.get(`/api/product/${status}`);
 
-export const FetchProductPaginated = (page: number, limit: number) =>
-    api.get(`/api/product/paged?page=${page}&limit=${limit}`);
+export const FetchProductPaginated = (page: number, limit: number, status = "All", category = "All", search = "") =>
+  api.get(`/api/product/paged?page=${page}&limit=${limit}&status=${status}&category=${category}&search=${search}`);
 
 export const FetchProductbyCategory = (category: string) =>
     api.get(`/api/product/${category}`);

@@ -23,15 +23,15 @@ export default function LoginPageClient() {
     try {
       const response = await axios.post(
         `${process.env.NEXT_PUBLIC_API_URL}/api/Auth/login`,
-        data
+        data,
+        { withCredentials: true }
       );
 
-      const { token, username, role } = response.data;
-      Cookies.set("token", token);
+      const { username, role } = response.data;
       Cookies.set("username", username);
       Cookies.set("role", role);
 
-      router.push("/dashboard");
+      router.push("/inventory");
     } catch {
       setError("root", { message: "Invalid username or password." });
     }

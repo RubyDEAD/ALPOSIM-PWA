@@ -37,10 +37,6 @@ export default function ViewTabs({
             {tab.label}
           </button>
         ))}
-
-        <button className="text-[13px] text-muted-foreground hover:text-foreground pb-2.5 transition-colors border-b-2 border-transparent">
-          + View
-        </button>
       </div>
 
       <Button

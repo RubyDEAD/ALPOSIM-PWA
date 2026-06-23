@@ -49,17 +49,19 @@ export default function ProductRow({ product, categories, onDelete }: ProductRow
         <StockBar
           quantity={product.quantity}
           minQuantity={product.minQuantity}
-          metric={product.metric}
+          
         />
+      </TableCell>
+      <TableCell className="py-3 text-right">
+        <div className="text-[13px] font-medium text-foreground">
+         {product.metric}
+        </div>
       </TableCell>
 
       {/* Price */}
       <TableCell className="py-3 text-right">
         <div className="text-[13px] font-medium text-foreground">
           ₱{product.sellingPrice.toLocaleString()}
-        </div>
-        <div className="text-[10px] text-muted-foreground/50 line-through">
-          ₱{product.originalPrice.toLocaleString()}
         </div>
       </TableCell>
 

@@ -1,71 +1,58 @@
 'use client';
 
-import { useEffect, useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { FetchProductPaginated, DeleteProduct } from "@/src/api/product";
 import { FetchCategories } from "@/src/api/category";
 import { Product, Category } from "@/src/types/types";
 import ProductForm from "../components/inventory/ProductForm";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import InventoryFilters from "@/src/app/components/inventory/InventoryFilters";
 import ProductTable from "@/src/app/components/inventory/ProductTable";
 import LoadingSkeleton from "@/src/app/components/inventory/LoadingSkeleton";
 import DeleteModal from "@/src/app/components/inventory/DeleteModal";
 import ViewTabs from "@/src/app/components/inventory/ViewTabs";
 import TablePagination from "@/src/app/components/inventory/TablePagination";
-import { Package, Plus } from "lucide-react";
+import { Package, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import Link from "next/link";
 
 const LIMIT = 15;
 
 export default function InventoryPage() {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const popupRef = useRef<HTMLDivElement>(null);
 
-  // Pagination
   const [page, setPage] = useState(1);
-  const [totalCount, setTotalCount] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
-
-  // Filters
   const [search, setSearch] = useState("");
   const [stockLevel, setStockLevel] = useState("All");
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [activeTab, setActiveTab] = useState("all");
-
-  // Delete flow
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [isPopupOpen, setIsPopupOpen] = useState(false);
 
-  useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      try {
-        const [productRes, categoryRes] = await Promise.all([
-          FetchProductPaginated(page, LIMIT),
-          FetchCategories(),
-        ]);
-        setProducts(productRes.data.items);
-        setTotalCount(productRes.data.totalCount);
-        setTotalPages(productRes.data.totalPages);
-        setCategories(categoryRes.data);
-      } catch (error) {
-        console.error("Failed to load data", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadData();
-  }, [page]); // re-fetch whenever page changes
+  // fetch categories
+  const { data: categories = [] } = useQuery<Category[]>({
+    queryKey: ["categories"],
+    queryFn: async () => {
+      const res = await FetchCategories();
+      return res.data;
+    },
+    staleTime: 1000 * 60 * 5,
+  });
 
-  // Filtering is done client-side on the current page's products
+  // fetch products
+  const { data: productData, isLoading } = useQuery({
+    queryKey: ["products", page, stockLevel, categoryFilter, search],
+    queryFn: async () => {
+      const res = await FetchProductPaginated(page, LIMIT, stockLevel, categoryFilter, search);
+      return res.data;
+    },
+  });
+
+  const products: Product[] = productData?.items ?? [];
+  const totalCount: number = productData?.totalCount ?? 0;
+  const totalPages: number = productData?.totalPages ?? 1;
+
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
       const matchSearch =
@@ -73,9 +60,7 @@ export default function InventoryPage() {
         product.productCode.toLowerCase().includes(search.toLowerCase());
 
       const matchStock =
-        stockLevel === "All" ||
-        (stockLevel === "Low" && product.quantity <= product.minQuantity) ||
-        (stockLevel === "Good" && product.quantity > product.minQuantity);
+        stockLevel === "All" || product.status === stockLevel;
 
       const matchCategory =
         categoryFilter === "All" || product.categoryId === Number(categoryFilter);
@@ -89,8 +74,7 @@ export default function InventoryPage() {
     setDeleting(true);
     try {
       await DeleteProduct(deleteId);
-      setProducts((prev) => prev.filter((p) => p.id !== deleteId));
-      setTotalCount((prev) => prev - 1);
+      queryClient.invalidateQueries({ queryKey: ["products"] });
       setDeleteId(null);
     } catch (error) {
       console.error("Failed to delete product", error);
@@ -99,10 +83,30 @@ export default function InventoryPage() {
     }
   };
 
-  // Reset to page 1 when filters change
   const handleSearchChange = (value: string) => { setSearch(value); setPage(1); };
   const handleStockChange = (value: string) => { setStockLevel(value); setPage(1); };
   const handleCategoryChange = (value: string) => { setCategoryFilter(value); setPage(1); };
+
+  // Close popup when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (popupRef.current && !popupRef.current.contains(event.target as Node)) {
+        setIsPopupOpen(false);
+      }
+    };
+
+    if (isPopupOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unset";
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.body.style.overflow = "unset";
+    };
+  }, [isPopupOpen]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -117,41 +121,83 @@ export default function InventoryPage() {
             <div>
               <h1 className="text-[15px] font-semibold text-foreground">Inventory</h1>
               <p className="text-[12px] text-muted-foreground">
-                {loading ? "Loading…" : `${totalCount} product${totalCount !== 1 ? "s" : ""}`}
+                {isLoading ? "Loading…" : `${totalCount} product${totalCount !== 1 ? "s" : ""}`}
               </p>
             </div>
           </div>
 
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button
-                size="sm"
-                className="gap-1.5 text-[13px] bg-amber-500 hover:bg-amber-600 text-white rounded-lg h-8"
+          {/* Popup Trigger Button */}
+          <div className="relative">
+            <Button
+              onClick={() => setIsPopupOpen(!isPopupOpen)}
+              className="bg-amber-500 hover:bg-amber-600 text-white"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Product
+            </Button>
+
+            {/* Popup Card */}
+            {isPopupOpen && (
+              <div 
+                className="fixed inset-0 z-50 flex items-center justify-center"
+                onClick={(e) => {
+                  // Only close if clicking the backdrop itself
+                  if (e.target === e.currentTarget) {
+                    setIsPopupOpen(false);
+                  }
+                }}
               >
-                <Plus className="w-10.5 h-3.5" />
-                Add product
-              </Button>
-            </DialogTrigger>
+                {/* Backdrop */}
+                <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" />
+                
+                {/* Popup Content */}
+                <div
+                  ref={popupRef}
+                  className="relative z-50 
+                    w-[95vw] max-w-6xl max-h-[90vh] 
+                    bg-white rounded-2xl shadow-2xl 
+                    overflow-y-auto
+                    animate-in fade-in-0 zoom-in-95 duration-200"
+                  onClick={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                >
+                  {/* Close Button */}
+                  <button
+                    onClick={() => setIsPopupOpen(false)}
+                    className="absolute top-4 right-4 p-2 rounded-lg hover:bg-muted transition-colors z-10"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
 
-            <DialogContent className="max-w-5xl w-[95vw]">
-              <DialogHeader>
-                <DialogTitle>Add Product</DialogTitle>
-              </DialogHeader>
+                  {/* Header */}
+                  <div className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-border px-6 py-4 z-10">
+                    <h2 className="text-lg font-semibold">Add Product</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Fill in the details to add a new product to your inventory.
+                    </p>
+                  </div>
 
-              <ProductForm />
-            </DialogContent>
-          </Dialog>
+                  {/* Form */}
+                  <div className="p-6">
+                    <ProductForm
+                      isInDialog={true}
+                      onCancel={() => setIsPopupOpen(false)}
+                      onSuccess={() => {
+                        setIsPopupOpen(false);
+                        queryClient.invalidateQueries({ queryKey: ["products"] });
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Main card */}
         <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
           <div className="p-4 space-y-3">
-
-            <ViewTabs
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-            />
-
+            <ViewTabs activeTab={activeTab} onTabChange={setActiveTab} />
             <InventoryFilters
               search={search}
               onSearchChange={handleSearchChange}
@@ -163,7 +209,7 @@ export default function InventoryPage() {
             />
           </div>
 
-          {loading ? (
+          {isLoading ? (
             <LoadingSkeleton rows={LIMIT} />
           ) : (
             <ProductTable
@@ -173,8 +219,7 @@ export default function InventoryPage() {
             />
           )}
 
-          {/* Pagination */}
-          {!loading && totalPages > 1 && (
+          {!isLoading && totalPages > 1 && (
             <TablePagination
               page={page}
               totalPages={totalPages}
@@ -184,7 +229,6 @@ export default function InventoryPage() {
             />
           )}
         </div>
-
       </div>
 
       <DeleteModal
