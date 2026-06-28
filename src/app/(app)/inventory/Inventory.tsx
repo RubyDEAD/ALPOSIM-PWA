@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { FetchProductPaginated, DeleteProduct } from "@/src/api/product";
 import { FetchCategories } from "@/src/api/category";
 import { Product, Category } from "@/src/types/types";
-import ProductForm from "../components/inventory/ProductForm";
+import ProductForm from "../../components/inventory/ProductForm";
 import InventoryFilters from "@/src/app/components/inventory/InventoryFilters";
 import ProductTable from "@/src/app/components/inventory/ProductTable";
 import LoadingSkeleton from "@/src/app/components/inventory/LoadingSkeleton";

@@ -6,3 +6,10 @@ export const STATUS_COLORS: Record<string, string> = {
 };
 
 export const STATUS_OPTIONS = ["All", "Critical", "Low", "Normal", "High"] as const;
+
+import { type ClassValue, clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}

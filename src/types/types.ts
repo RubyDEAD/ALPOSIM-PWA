@@ -1,4 +1,5 @@
-// Auth
+// ── Auth ──────────────────────────────────────────────────────────────────────
+
 export interface LoginRequest {
   username: string;
   password: string;
@@ -10,7 +11,19 @@ export interface AuthResponse {
   role: string;
 }
 
-// Product
+// ── Category ──────────────────────────────────────────────────────────────────
+
+export interface Category {
+  id: number;
+  name: string;
+}
+
+export interface CategoryInput {
+  name: string;
+}
+
+// ── Product ───────────────────────────────────────────────────────────────────
+
 export interface Product {
   id: string;
   productCode: string;
@@ -28,10 +41,10 @@ export interface Product {
   updatedAt: string;
 }
 
-export interface ProductRequest {
+export interface ProductInput {
   name: string;
   categoryId: number;
-  imageUrl: string;
+  imageUrl?: string;
   quantity: number;
   minQuantity: number;
   originalPrice: number;
@@ -39,13 +52,30 @@ export interface ProductRequest {
   metric: string;
 }
 
-// Category
-export interface Category {
-  id: number;
-  name: string;
+export interface ProductHistory {
+  id: string;
+  productId: string;
+  fieldChanged: string;
+  oldValue: string;
+  newValue: string;
+  action: string;
+  changedBy: string;
+  changedAt: string;
 }
 
-// Sale
+// ── Sale ──────────────────────────────────────────────────────────────────────
+
+export interface SaleItem {
+  id: string;
+  saleId: string;
+  productId: string;
+  product?: Product;
+  quantity: number;
+  costPrice: number;
+  unitPrice: number;
+  totalPrice: number;
+}
+
 export interface Sale {
   id: string;
   saleCode: string;
@@ -58,28 +88,28 @@ export interface Sale {
   modifiedAt: string;
 }
 
-export interface SaleItem {
-  id: string;
-  saleId: string;
+export interface SaleItemInput {
   productId: string;
   quantity: number;
-  costPrice: number;
-  unitPrice: number;
-  totalPrice: number;
 }
 
-export interface SaleRequest {
-  items: SaleItemRequest[];
+export interface SaleInput {
+  items: SaleItemInput[];
   receivedCash: number;
   onlinePayment: boolean;
 }
 
-export interface SaleItemRequest {
-  productId: string;
-  quantity: number;
+// ── Report ────────────────────────────────────────────────────────────────────
+
+export interface DailyReport {
+  date: string;
+  totalSales: number;
+  totalRevenue: number;
+  totalProfit: number;
 }
 
-// Sync
+// ── Sync ──────────────────────────────────────────────────────────────────────
+
 export interface Sync {
   syncId: string;
   status: string;
@@ -92,28 +122,12 @@ export interface SyncStatusDto {
   syncDate: string;
 }
 
-// Report
-export interface DailyReport {
-  date: string;
-  totalSales: number;
-  totalRevenue: number;
-  totalProfit: number;
-}
+// ── Pagination ────────────────────────────────────────────────────────────────
 
 export interface Pagination<T> {
   items: T[];
   totalCount: number;
+  totalPages: number;
   page: number;
   limit: number;
-}
-
-export interface ProductHistory {
-  id: string;
-  productId: string;
-  fieldChanged: string;
-  oldValue: string;
-  newValue: string;
-  action: string;
-  changedBy: string;
-  changedAt: string;
 }

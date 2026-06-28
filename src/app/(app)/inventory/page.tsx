@@ -1,5 +1,5 @@
 import { Metadata } from "next";
-import InventoryClientPage from "../inventory/Inventory";
+import InventoryClientPage from "./Inventory";
 
 
 export const metedata: Metadata = {
