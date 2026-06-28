@@ -106,3 +106,14 @@ export interface Pagination<T> {
   page: number;
   limit: number;
 }
+
+export interface ProductHistory {
+  id: string;
+  productId: string;
+  fieldChanged: string;
+  oldValue: string;
+  newValue: string;
+  action: string;
+  changedBy: string;
+  changedAt: string;
+}

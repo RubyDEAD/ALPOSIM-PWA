@@ -22,9 +22,11 @@ export const FetchProductbyCategory = (category: string) =>
 export const CreateProduct = (data: ProductInput) =>
     api.post("/api/product", data)
 
-export const UpdateProduct = (id: string, data: ProductInput) =>
+export const UpdateProduct = (id: string, data: ProductInput, changedBy: string) =>
     api.put(`/api/product/${id}`, data);
 
 export const DeleteProduct = (id: string) =>
     api.delete(`/api/product/${id}`);
+
+
 

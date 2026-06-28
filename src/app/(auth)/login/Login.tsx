@@ -26,14 +26,16 @@ export default function LoginPageClient() {
         data,
         { withCredentials: true }
       );
-
+      console.log("Resonse:", response.data);
       const { username, role } = response.data;
-      Cookies.set("username", username);
-      Cookies.set("role", role);
 
+      Cookies.set("username", username, {expires: 1}); 
+      Cookies.set("role", role, {expires: 1});
+      
       router.push("/inventory");
     } catch {
       setError("root", { message: "Invalid username or password." });
+      alert("Invalid username or password.");
     }
   };
 

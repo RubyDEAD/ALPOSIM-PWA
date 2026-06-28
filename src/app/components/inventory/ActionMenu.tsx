@@ -42,14 +42,12 @@ export default function ActionMenu({ productId, productName, onDelete }: ActionM
           </Link>
         </DropdownMenuItem>
 
-        <DropdownMenuItem className="text-[12px] gap-2 cursor-pointer">
-          <BellRing className="w-3.5 h-3.5 text-muted-foreground" />
-          Stock alert
-        </DropdownMenuItem>
-
+        
         <DropdownMenuItem className="text-[12px] gap-2 cursor-pointer">
           <History className="w-3.5 h-3.5 text-muted-foreground" />
-          Stock history
+          <Link href={`product/history/${productId}`}>
+          Product history
+          </Link>
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />
