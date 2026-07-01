@@ -122,6 +122,11 @@ export interface SyncStatusDto {
   syncDate: string;
 }
 
+
+export interface UpdateSaleItemQuantityDto{
+  quantity: number;
+}
+
 // ── Pagination ────────────────────────────────────────────────────────────────
 
 export interface Pagination<T> {

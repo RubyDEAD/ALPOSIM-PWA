@@ -1,6 +1,7 @@
 import api from "@/src/lib/api";
 import { SaleInput } from "@/src/schema/schema";
 import { SaleItemInput } from "@/src/schema/schema";
+import { UpdateSaleItemQuantityDto } from "../types/types";
 
 // Get all sales
 export const FetchSales = () =>
@@ -32,11 +33,16 @@ export const DeleteSale = (id: string) =>
 
 // Add item to a sale
 export const AddSaleItem = (saleId: string, data: SaleItemInput) =>
-  api.post(`/api/sale/${saleId}/items`, data);
+  api.post(`/api/sale/${saleId}/item`, data);
 
 // Remove item from a sale
 export const RemoveSaleItem = (saleId: string, itemId: string) =>
-  api.delete(`/api/sale/${saleId}/items/${itemId}`);
+  api.delete(`/api/sale/${saleId}/item/${itemId}`);
 
-export const UpdateSaleItem = (saleId: string, data: SaleItemInput) =>
-  api.patch(`/api/sale/${saleId}/items/${data}`);
+// Update item quantity
+export const UpdateSaleItem = (
+  saleId: string,
+  itemId: string,
+  data: UpdateSaleItemQuantityDto
+) =>
+  api.put(`/api/sale/${saleId}/item/${itemId}`, data);
