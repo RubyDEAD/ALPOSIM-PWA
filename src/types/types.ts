@@ -69,6 +69,7 @@ export interface SaleItem {
   id: string;
   saleId: string;
   productId: string;
+  name: string;
   product?: Product;
   quantity: number;
   costPrice: number;

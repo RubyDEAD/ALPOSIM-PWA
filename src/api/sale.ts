@@ -30,19 +30,3 @@ export const UpdateSale = (id: string, data: SaleInput) =>
 // Delete sale
 export const DeleteSale = (id: string) =>
   api.delete(`/api/sale/${id}`);
-
-// Add item to a sale
-export const AddSaleItem = (saleId: string, data: SaleItemInput) =>
-  api.post(`/api/sale/${saleId}/item`, data);
-
-// Remove item from a sale
-export const RemoveSaleItem = (saleId: string, itemId: string) =>
-  api.delete(`/api/sale/${saleId}/item/${itemId}`);
-
-// Update item quantity
-export const UpdateSaleItem = (
-  saleId: string,
-  itemId: string,
-  data: UpdateSaleItemQuantityDto
-) =>
-  api.put(`/api/sale/${saleId}/item/${itemId}`, data);

@@ -145,15 +145,14 @@ export default function OrdersPage() {
   };
 
   return (
-    <div className="space-y-6">
-
-    <OrderActionBar
-      onAddOrder={() => setAddOpen(true)}
-      totalOrders={filteredOrders.length}
-    />
-      <OrderSummaryCards orders={filteredOrders} />
-
-      <OrderFilters
+    <div className="space-y-6 min-h-screen">
+      <OrderActionBar
+        onAddOrder={() => setAddOpen(true)}
+        totalOrders={filteredOrders.length}
+      />
+  
+    <OrderSummaryCards orders={filteredOrders} />
+        <OrderFilters
         search={search}
         onSearchChange={setSearch}
         paymentFilter={paymentFilter}
@@ -163,7 +162,7 @@ export default function OrdersPage() {
         onStartDateChange={setStartDate}
         onEndDateChange={setEndDate}
       />
-
+      <div className="max-w-10xl mx-auto px-2 sm:px-6 lg:px-8 py-8 space-y-6">
       <OrderTable
         orders={filteredOrders}
         loading={loading}
@@ -199,6 +198,7 @@ export default function OrdersPage() {
             />
         </DialogContent>
     </Dialog>
+    </div>
     </div>
   );
 }
