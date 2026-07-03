@@ -1,3 +1,4 @@
+// ProductRow.tsx
 import { Package } from "lucide-react";
 import { Product, Category } from "@/src/types/types";
 import { TableCell, TableRow } from "@/components/ui/table";
@@ -9,14 +10,19 @@ interface ProductRowProps {
   product: Product;
   categories: Category[];
   onDelete: (id: string) => void;
+  onReorder: (product: Product, quantity: number) => Promise<void>; // Changed to accept full product
 }
 
-export default function ProductRow({ product, categories, onDelete }: ProductRowProps) {
+export default function ProductRow({ 
+  product, 
+  categories, 
+  onDelete,
+  onReorder 
+}: ProductRowProps) {
   const category = categories.find((c) => c.id === product.categoryId);
 
   return (
     <TableRow className="group">
-
       {/* Product name */}
       <TableCell className="py-3">
         <div className="flex items-center gap-2.5">
@@ -49,12 +55,12 @@ export default function ProductRow({ product, categories, onDelete }: ProductRow
         <StockBar
           quantity={product.quantity}
           minQuantity={product.minQuantity}
-          
         />
       </TableCell>
+      
       <TableCell className="py-3 text-right">
         <div className="text-[13px] font-medium text-foreground">
-         {product.metric}
+          {product.metric}
         </div>
       </TableCell>
 
@@ -68,12 +74,11 @@ export default function ProductRow({ product, categories, onDelete }: ProductRow
       {/* Actions */}
       <TableCell className="py-3 text-right">
         <ActionMenu
-          productId={product.id}
-          productName={product.name}
+          product={product} // Pass the full product
           onDelete={onDelete}
+          onReorder={(quantity: number) => onReorder(product, quantity)} // Pass the reorder function with product
         />
       </TableCell>
-
     </TableRow>
   );
 }

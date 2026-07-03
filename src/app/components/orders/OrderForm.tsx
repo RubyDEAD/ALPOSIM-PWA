@@ -73,7 +73,6 @@ export function OrderForm({
   const receivedCash = Number(useWatch({ control: form.control, name: 'receivedCash' }) ?? 0);
   const onlinePayment = useWatch({ control: form.control, name: 'onlinePayment' }) ?? false;
 
-  // ✅ Create a map of productId to product data
   const productMap = useMemo(() => {
     const map = new Map<string, Product>();
     products.forEach((product: Product) => {
@@ -451,8 +450,8 @@ export function OrderForm({
                 }`}
               >
                 {hasCashShortage
-                  ? `⚠️ Still due: ${formatCurrency(grandTotal - receivedCash)}`
-                  : '✅ Cash is sufficient for this order.'}
+                  ? `Still due: ${formatCurrency(grandTotal - receivedCash)}`
+                  : 'Cash is sufficient for this order.'}
               </div>
             )}
           </div>

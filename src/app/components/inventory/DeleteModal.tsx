@@ -23,7 +23,7 @@ export default function DeleteModal({
           <div className="p-2 bg-red-500/10 rounded-full">
             <AlertTriangle className="w-6 h-6 text-red-400" />
           </div>
-          <h2 className="text-lg font-semibold">Delete Product?</h2>
+          <h2 className="text-lg font-semibold text-gray-100">Delete Product?</h2>
         </div>
         
         <p className="text-[#6b7280] text-sm mb-6">

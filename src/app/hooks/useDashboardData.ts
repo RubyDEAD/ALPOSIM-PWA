@@ -3,8 +3,9 @@ import { FetchProducts } from '@/src/api/product';
 import { FetchCategories } from '@/src/api/category';
 import { FetchSales } from '@/src/api/sale';
 import { FetchDailyReport, FetchMonthlyReport } from '@/src/api/report';
+import { FetchProductHistories } from '@/src/api/productHistory';
 import { FetchSyncs } from '@/src/api/sync';
-import { Product, Sale, Category, DailyReport, SyncStatusDto } from '@/src/types/types';
+import { Product, Sale, Category, DailyReport, SyncStatusDto, ProductHistory } from '@/src/types/types';
 
 export function useDashboardData() {
   const today = new Date().toISOString().split('T')[0];
@@ -41,7 +42,7 @@ export function useDashboardData() {
         queryKey: ['report', 'daily', today],
         queryFn: async () => {
           const res = await FetchDailyReport(today);
-          return res.data as DailyReport;
+          return res.data;
         },
         staleTime: 1000 * 60 * 5,
       },
@@ -49,7 +50,7 @@ export function useDashboardData() {
         queryKey: ['report', 'monthly', currentYear],
         queryFn: async () => {
           const res = await FetchMonthlyReport(currentYear);
-          return res.data as DailyReport[];
+          return res.data;
         },
         staleTime: 1000 * 60 * 10,
       },
@@ -61,6 +62,14 @@ export function useDashboardData() {
         },
         staleTime: 1000 * 60 * 1,
       },
+      {
+        queryKey: ['productHistories'],
+        queryFn: async () => {
+          const res = await FetchProductHistories();
+          return res.data as ProductHistory[];
+        },
+        staleTime: 1000 * 60 * 2,
+      },
     ],
   });
 
@@ -71,29 +80,37 @@ export function useDashboardData() {
     dailyReportQ,
     monthlyReportsQ,
     syncsQ,
+    historiesQ,
   ] = results;
 
   const isLoading = results.some((r) => r.isLoading);
   const error = results.find((r) => r.error)?.error as Error | null ?? null;
 
-  const products: Product[] = productsQ.data ?? [];
+  const products: Product[]    = productsQ.data   ?? [];
   const categories: Category[] = categoriesQ.data ?? [];
-  const sales: Sale[] = salesQ.data ?? [];
-  const dailyReports: DailyReport[] = monthlyReportsQ.data ?? [];
+  const sales: Sale[]          = salesQ.data      ?? [];
   const syncStatus: SyncStatusDto = syncsQ.data?.[0] ?? {
-    syncId: '',
-    status: 'Unknown',
-    syncDate: new Date().toISOString(),
+    syncId: '', status: 'Unknown', syncDate: new Date().toISOString(),
   };
 
-  // ── Derived stats ──────────────────────────────────────────────────────────
+  // Map ReportDto → DailyReport shape the chart expects
+  const rawReports: any[] = monthlyReportsQ.data ?? [];
+  const dailyReports: DailyReport[] = rawReports.map((r) => ({
+    period:          r.period          ?? '',
+    revenue:         r.revenue         ?? 0,
+    cogs:            r.cogs            ?? 0,
+    grossProfit:     r.grossProfit     ?? 0,
+    periodStartDate: r.periodStartDate ?? '',
+    periodEndDate:   r.periodEndDate   ?? '',
+  }));
 
-  const totalRevenue = sales.reduce((acc, sale) => acc + (sale.totalPrice ?? 0), 0);
-  const totalSales = sales.length;
-  const totalProducts = products.length;
+  // ── Derived stats ─────────────────────────────────────────────────────────
+
+  const totalRevenue    = sales.reduce((acc, s) => acc + (s.totalPrice ?? 0), 0);
+  const totalSales      = sales.length;
+  const totalProducts   = products.length;
   const totalCategories = categories.length;
 
-  // Revenue trend: compare this month's revenue to last month's
   const thisMonth = new Date().getMonth();
   const thisMonthRevenue = sales
     .filter((s) => new Date(s.createdAt).getMonth() === thisMonth)
@@ -105,43 +122,34 @@ export function useDashboardData() {
     ? Number((((thisMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100).toFixed(1))
     : 0;
 
-  // Product counts per category
   const productCounts: Record<number, number> = products.reduce(
-    (acc, p) => {
-      acc[p.categoryId] = (acc[p.categoryId] ?? 0) + 1;
-      return acc;
-    },
+    (acc, p) => { acc[p.categoryId] = (acc[p.categoryId] ?? 0) + 1; return acc; },
     {} as Record<number, number>
   );
 
-  // Recent 5 sales
   const recentSales = [...sales]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 5);
 
-  // Low stock products
   const lowStockProducts = products
     .filter((p) => p.quantity <= p.minQuantity)
     .slice(0, 10);
 
-  // Top products by selling price
   const topProducts = [...products]
     .sort((a, b) => b.sellingPrice - a.sellingPrice)
     .slice(0, 5);
 
+  const recentHistory: ProductHistory[] = [...(historiesQ.data ?? [])]
+    .sort((a, b) => new Date(b.changedAt).getTime() - new Date(a.changedAt).getTime())
+    .slice(0, 10);
+
   return {
     data: {
-      stats: {
-        totalRevenue,
-        totalSales,
-        totalProducts,
-        totalCategories,
-        revenueTrend,
-      },
+      stats: { totalRevenue, totalSales, totalProducts, totalCategories, revenueTrend },
       sales: recentSales,
       products: lowStockProducts,
       topProducts,
-      history: [],
+      history: recentHistory,
       dailyReports,
       categories,
       productCounts,
@@ -149,15 +157,13 @@ export function useDashboardData() {
     },
     isLoading,
     error,
-
-    // Expose individual query states for granular loading UI if needed
     queries: {
-      products: productsQ,
-      categories: categoriesQ,
-      sales: salesQ,
-      dailyReport: dailyReportQ,
+      products:       productsQ,
+      categories:     categoriesQ,
+      sales:          salesQ,
+      dailyReport:    dailyReportQ,
       monthlyReports: monthlyReportsQ,
-      syncs: syncsQ,
+      syncs:          syncsQ,
     },
   };
 }

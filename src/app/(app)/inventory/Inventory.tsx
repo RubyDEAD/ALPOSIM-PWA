@@ -53,21 +53,7 @@ export default function InventoryPage() {
   const totalCount: number = productData?.totalCount ?? 0;
   const totalPages: number = productData?.totalPages ?? 1;
 
-  const filteredProducts = useMemo(() => {
-    return products.filter((product) => {
-      const matchSearch =
-        product.name.toLowerCase().includes(search.toLowerCase()) ||
-        product.productCode.toLowerCase().includes(search.toLowerCase());
 
-      const matchStock =
-        stockLevel === "All" || product.status === stockLevel;
-
-      const matchCategory =
-        categoryFilter === "All" || product.categoryId === Number(categoryFilter);
-
-      return matchSearch && matchStock && matchCategory;
-    });
-  }, [products, search, stockLevel, categoryFilter]);
 
   const handleDelete = async () => {
     if (!deleteId) return;
@@ -213,7 +199,7 @@ export default function InventoryPage() {
             <LoadingSkeleton rows={LIMIT} />
           ) : (
             <ProductTable
-              products={filteredProducts}
+              products={products}
               categories={categories}
               onDelete={setDeleteId}
             />

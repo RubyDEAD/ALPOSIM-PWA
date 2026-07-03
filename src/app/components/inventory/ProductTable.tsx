@@ -1,126 +1,68 @@
-import { useState, useMemo } from "react";
-import { Product, Category } from "@/src/types/types";
-import { Table, TableBody } from "@/components/ui/table";
+// ProductTable.tsx
+'use client';
 
-import ProductTableHeader, { SortField, SortDir } from "./ProductTableHeader";
+import { Product, Category } from "@/src/types/types";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import ProductRow from "./ProductRow";
-import LoadingSkeleton from "./LoadingSkeleton";
-import EmptyState from "./EmptyState";
+import { useReorderStock } from '@/src/app/hooks/useReorderStock';
+import { useAuth } from '@/src/app/hooks/useAuth';
 
 interface ProductTableProps {
   products: Product[];
   categories: Category[];
   onDelete: (id: string) => void;
-  isLoading?: boolean;
 }
 
-export default function ProductTable({
-  products,
-  categories,
-  onDelete,
-  isLoading = false,
+export default function ProductTable({ 
+  products, 
+  categories, 
+  onDelete 
 }: ProductTableProps) {
-  const [activeTab, setActiveTab] = useState("all");
-  const [stockLevel, setStockLevel] = useState("All");
-  const [sortField, setSortField] = useState<SortField | null>(null);
-  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const { reorderStock, isLoading } = useReorderStock();
+  const { username } = useAuth();
 
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDir(sortDir === "asc" ? "desc" : "asc");
-    } else {
-      setSortField(field);
-      setSortDir("asc");
+  const handleReorder = async (product: Product, quantity: number) => {
+    try {
+      // Use the username from cookies, fallback to 'system'
+      await reorderStock(product, quantity, username || 'system');
+      // Optionally show success toast
+    } catch (error) {
+      console.error('Failed to reorder:', error);
+      // Optionally show error toast
     }
   };
 
-  const filteredAndSorted = useMemo(() => {
-    let result = [...products];
-
-    // Filter by stock level
-    if (stockLevel === "Low") {
-      result = result.filter((p) => p.quantity <= p.minQuantity);
-    } else if (stockLevel === "Good") {
-      result = result.filter((p) => p.quantity > p.minQuantity);
-    }
-
-    // Sort
-    if (sortField) {
-      result.sort((a, b) => {
-        let aVal: string | number;
-        let bVal: string | number;
-
-        switch (sortField) {
-          case "name":
-            aVal = a.name.toLowerCase();
-            bVal = b.name.toLowerCase();
-            break;
-          case "sku":
-            aVal = a.productCode.toLowerCase();
-            bVal = b.productCode.toLowerCase();
-            break;
-          case "stock":
-            aVal = a.quantity;
-            bVal = b.quantity;
-            break;
-          case "price":
-            aVal = a.sellingPrice;
-            bVal = b.sellingPrice;
-            break;
-          default:
-            return 0;
-        }
-
-        if (aVal < bVal) return sortDir === "asc" ? -1 : 1;
-        if (aVal > bVal) return sortDir === "asc" ? 1 : -1;
-        return 0;
-      });
-    }
-
-    return result;
-  }, [products, stockLevel, sortField, sortDir]);
-
-  if (isLoading) {
-    return <LoadingSkeleton rows={6} />;
-  }
-
-  if (products.length === 0) {
-    return <EmptyState />;
-  }
-
   return (
-    <div className="w-full space-y-3">
-
-
-
-      <div className="rounded-xl border border-border bg-white overflow-hidden">
-        <Table>
-          <ProductTableHeader
-            sortField={sortField}
-            sortDir={sortDir}
-            onSort={handleSort}
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Product</TableHead>
+          <TableHead>SKU</TableHead>
+          <TableHead>Category</TableHead>
+          <TableHead>Stock</TableHead>
+          <TableHead>Metric</TableHead>
+          <TableHead className="text-right">Price</TableHead>
+          <TableHead className="text-right">Actions</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {products.map((product) => (
+          <ProductRow
+            key={product.id}
+            product={product}
+            categories={categories}
+            onDelete={onDelete}
+            onReorder={handleReorder}
           />
-          <TableBody>
-            {filteredAndSorted.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="py-16 text-center text-sm text-muted-foreground">
-                  No products match this filter.
-                </td>
-              </tr>
-            ) : (
-              filteredAndSorted.map((product) => (
-                <ProductRow
-                  key={product.id}
-                  product={product}
-                  categories={categories}
-                  onDelete={onDelete}
-                />
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
-
-    </div>
+        ))}
+      </TableBody>
+    </Table>
   );
 }

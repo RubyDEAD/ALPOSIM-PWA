@@ -103,10 +103,18 @@ export interface SaleInput {
 // ── Report ────────────────────────────────────────────────────────────────────
 
 export interface DailyReport {
-  date: string;
-  totalSales: number;
-  totalRevenue: number;
-  totalProfit: number;
+  // ReportDto fields from backend
+  period: string;
+  revenue: number;
+  cogs: number;
+  grossProfit: number;
+  periodStartDate: string;
+  periodEndDate: string;
+  // Legacy aliases kept for compatibility
+  date?: string;
+  totalSales?: number;
+  totalRevenue?: number;
+  totalProfit?: number;
 }
 
 // ── Sync ──────────────────────────────────────────────────────────────────────

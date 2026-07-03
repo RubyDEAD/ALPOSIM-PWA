@@ -186,13 +186,13 @@ export default function OrdersPage() {
 
       {/* Add Order Dialog */}
     <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="sm:max-w-3xl">
+        <DialogContent className="sm:max-w-3xl overflow-y-auto max-h-[80vh]">
             <DialogHeader>
             <DialogTitle>Create Order</DialogTitle>
             </DialogHeader>
             <OrderForm
             key={addOpen ? "open" : "closed"}
-            products={products}
+          
             loading={createLoading}
             onSubmit={handleCreateOrder}
             />
