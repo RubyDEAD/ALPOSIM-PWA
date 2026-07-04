@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { UpdateProduct } from '@/src/api/product';
 import { Product } from '@/src/types/types';
-import { useAuth } from '@/src/app/hooks/useAuth';
 
 export function useReorderStock() {
   const queryClient = useQueryClient();
@@ -18,8 +17,9 @@ export function useReorderStock() {
       // Calculate new quantity
       const newQuantity = product.quantity + quantity;
       
-      // Update only the quantity field, but keep all other fields
+      // Match the Swagger contract for product updates.
       const updateData = {
+        productCode: product.productCode,
         name: product.name,
         categoryId: product.categoryId,
         imageUrl: product.imageUrl,
@@ -28,12 +28,10 @@ export function useReorderStock() {
         originalPrice: product.originalPrice,
         sellingPrice: product.sellingPrice,
         metric: product.metric,
-        // Optionally update status based on new quantity
-        status: newQuantity > product.minQuantity ? 'IN_STOCK' : 'LOW_STOCK',
       };
    
 
-      const response = await UpdateProduct(product.id, updateData);
+      const response = await UpdateProduct(product.id, updateData, changedBy);
       
       // Invalidate and refetch
       queryClient.invalidateQueries({ queryKey: ['products'] });

@@ -61,6 +61,7 @@ export interface ProductHistory {
   action: string;
   changedBy: string;
   changedAt: string;
+  productCode: string;
 }
 
 // ── Sale ──────────────────────────────────────────────────────────────────────

@@ -35,7 +35,7 @@ export function ProductHistory({ history }: ProductHistoryProps) {
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-foreground">
-                    Product #{item.productId}
+                    Product #{item.productCode}
                   </span>
                   <Badge variant="outline" className="text-[10px] capitalize">
                     {item.action.toLowerCase()}
