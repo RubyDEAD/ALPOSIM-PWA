@@ -29,4 +29,29 @@ export const UpdateSale = (id: string, data: SaleInput) =>
 
 // Delete sale
 export const DeleteSale = (id: string) =>
-  api.delete(`/api/sale/${id}`);
+  api.delete(`/api/sale/${id}`); 
+
+export const FetchSalesPaginated = (
+  page: number,
+  limit: number,
+  saleCode?: string,
+  payment?: boolean | null,
+  startDate?: string,
+  endDate?: string
+) => {
+  const now = new Date();
+  const defaultStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString(); // first day of current month
+  const defaultEnd = now.toISOString(); // now
+
+  const params = new URLSearchParams({
+    page: String(page),
+    limit: String(limit),
+    startDate: startDate || defaultStart,
+    endDate: endDate || defaultEnd,
+  });
+
+  if (saleCode) params.append("saleCode", saleCode);
+  if (payment !== null && payment !== undefined) params.append("payment", String(payment));
+
+  return api.get(`/api/sale/paged?${params.toString()}`);
+};

@@ -1,11 +1,16 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-
-import { FetchSales, DeleteSale, CreateSale } from '@/src/api/sale';
+import { useEffect, useState } from 'react';
+import {
+  FetchSalesPaginated,
+  DeleteSale,
+  FetchSales,
+  CreateSale,
+} from '@/src/api/sale';
 import { Sale, Product } from '@/src/types/types';
 import { SaleInput } from '@/src/schema/schema';
 import { FetchProducts } from '@/src/api/product';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
   OrderSummaryCards,
@@ -17,10 +22,11 @@ import {
 import OrderActionBar from '@/src/app/components/orders/OrderActionBar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { OrderForm } from '../../components/orders/OrderForm';
-
+import TablePagination from '@/src/app/components/inventory/TablePagination';
 export default function OrdersPage() {
-  const [orders, setOrders] = useState<Sale[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const [page, setPage] = useState(1);
+  const limit = 15;
   const [products, setProducts] = useState<Product[]>([]);
   const [createLoading, setCreateLoading] = useState(false);
 
@@ -39,18 +45,41 @@ export default function OrdersPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  const fetchOrders = async () => {
-    setLoading(true);
+  const payment =
+    paymentFilter === "all"
+      ? undefined
+      : paymentFilter === "online";
 
-    try {
-      const response = await FetchSales();
-      setOrders(response.data);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const {
+    data,
+    isLoading,
+  } = useQuery({
+    queryKey: [
+      "sales",
+      page,
+      limit,
+      search,
+      payment,
+      startDate,
+      endDate,
+    ],
+    queryFn: async () => {
+      const response = await FetchSalesPaginated(
+        page,
+        limit,
+        search,
+        payment,
+        startDate,
+        endDate
+      );
+
+      return response.data;
+    },
+  });
+
+  const orders = data?.items ?? [];
+  const totalCount = data?.totalCount ?? 0;
+  const totalPages = data?.totalPages ?? 1;
 
   const fetchProducts = async () => {
     try {
@@ -59,61 +88,29 @@ export default function OrdersPage() {
     } catch (error) {
         console.error(error);
     }
-};
+  };
 
   useEffect(() => {
-    fetchOrders();
     fetchProducts();
   }, []);
 
   const handleCreateOrder = async (data: SaleInput) => {
-  setCreateLoading(true);
+    setCreateLoading(true);
 
-  try {
-    await CreateSale(data);
+    try {
+      await CreateSale(data);
 
-    setAddOpen(false);
+      setAddOpen(false);
 
-    await fetchOrders();
-  } catch (error) {
-    console.error(error);
-  } finally {
-    setCreateLoading(false);
-  }
-};
-
-
-  const filteredOrders = useMemo(() => {
-    return orders.filter((order) => {
-      const matchesSearch = order.saleCode
-        .toLowerCase()
-        .includes(search.toLowerCase());
-
-      const matchesPayment =
-        paymentFilter === 'all'
-          ? true
-          : paymentFilter === 'online'
-          ? order.onlinePayment
-          : !order.onlinePayment;
-
-      const orderDate = new Date(order.createdAt);
-
-      const matchesStart = startDate
-        ? orderDate >= new Date(startDate)
-        : true;
-
-      const matchesEnd = endDate
-        ? orderDate <= new Date(endDate + 'T23:59:59')
-        : true;
-
-      return (
-        matchesSearch &&
-        matchesPayment &&
-        matchesStart &&
-        matchesEnd
-      );
-    });
-  }, [orders, search, paymentFilter, startDate, endDate]);
+      queryClient.invalidateQueries({
+        queryKey: ["sales"],
+      });
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setCreateLoading(false);
+    }
+  };
 
   const handleView = (sale: Sale) => {
     setSelectedSale(sale);
@@ -136,7 +133,9 @@ export default function OrdersPage() {
       setDeleteOpen(false);
       setSelectedSale(null);
 
-      await fetchOrders();
+      queryClient.invalidateQueries({
+        queryKey: ["sales"],
+      });
     } catch (error) {
       console.error(error);
     } finally {
@@ -144,15 +143,24 @@ export default function OrdersPage() {
     }
   };
 
+  const {data: allOrders = [] } = useQuery({
+    queryKey: ["sales"],
+    queryFn: async () =>{
+      const response = await FetchSales();
+      return response.data; 
+    },
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+
   return (
     <div className="space-y-6 min-h-screen">
       <OrderActionBar
         onAddOrder={() => setAddOpen(true)}
-        totalOrders={filteredOrders.length}
+        totalOrders={totalCount}
       />
   
-    <OrderSummaryCards orders={filteredOrders} />
-        <OrderFilters
+      <OrderSummaryCards orders={allOrders} />
+      <OrderFilters
         search={search}
         onSearchChange={setSearch}
         paymentFilter={paymentFilter}
@@ -162,43 +170,53 @@ export default function OrdersPage() {
         onStartDateChange={setStartDate}
         onEndDateChange={setEndDate}
       />
+
       <div className="max-w-10xl mx-auto px-2 sm:px-6 lg:px-8 py-8 space-y-6">
-      <OrderTable
-        orders={filteredOrders}
-        loading={loading}
-        onView={handleView}
-        onDelete={handleDeleteClick}
-      />
+        <OrderTable
+          orders={orders}
+          loading={isLoading}
+          onView={handleView}
+          onDelete={handleDeleteClick}
+        />
 
-      <OrderDetailsDialog
-        open={detailsOpen}
-        onOpenChange={setDetailsOpen}
-        sale={selectedSale}
-      />
+        {!isLoading && totalPages > 1 && (
+        <TablePagination
+          page={page}
+          totalPages={totalPages}
+          totalCount={totalCount}
+          limit={limit}
+          onPageChange={setPage}
+        />
+      )}
 
-      <DeleteOrderDialog
-        open={deleteOpen}
-        onOpenChange={setDeleteOpen}
-        sale={selectedSale}
-        loading={deleteLoading}
-        onDelete={handleDelete}
-      />
+        <OrderDetailsDialog
+          open={detailsOpen}
+          onOpenChange={setDetailsOpen}
+          sale={selectedSale}
+        />
 
-      {/* Add Order Dialog */}
-    <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="sm:max-w-3xl overflow-y-auto max-h-[80vh]">
+        <DeleteOrderDialog
+          open={deleteOpen}
+          onOpenChange={setDeleteOpen}
+          sale={selectedSale}
+          loading={deleteLoading}
+          onDelete={handleDelete}
+        />
+
+        {/* Add Order Dialog */}
+        <Dialog open={addOpen} onOpenChange={setAddOpen}>
+          <DialogContent className="sm:max-w-3xl overflow-y-auto max-h-[80vh]">
             <DialogHeader>
-            <DialogTitle>Create Order</DialogTitle>
+              <DialogTitle>Create Order</DialogTitle>
             </DialogHeader>
             <OrderForm
-            key={addOpen ? "open" : "closed"}
-          
-            loading={createLoading}
-            onSubmit={handleCreateOrder}
+              key={addOpen ? "open" : "closed"}
+              loading={createLoading}
+              onSubmit={handleCreateOrder}
             />
-        </DialogContent>
-    </Dialog>
-    </div>
+          </DialogContent>
+        </Dialog>
+      </div>
     </div>
   );
 }

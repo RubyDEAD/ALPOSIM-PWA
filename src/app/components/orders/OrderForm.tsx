@@ -1,26 +1,20 @@
 'use client';
 
-import { useMemo, useCallback } from 'react';
-import { useFieldArray, useForm } from 'react-hook-form';
+import { useMemo, useCallback, useState } from 'react';
+import { useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Plus, Trash2, AlertCircle, ShoppingBag, RefreshCw, Loader2 } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Plus, Trash2, AlertCircle, ShoppingBag, Loader2, Search, X, Package } from 'lucide-react';
 
 import { Product } from '@/src/types/types';
 import { SaleInput, SaleSchema } from '@/src/schema/schema';
-import { useProducts } from '@/src/app/hooks/useProduct';
+import { FetchProducts } from '@/src/api/product';
 
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useWatch} from 'react-hook-form';
+
 interface OrderFormProps {
   defaultValues?: SaleInput;
   loading?: boolean;
@@ -32,168 +26,240 @@ const formatCurrency = (value: number) =>
     style: 'currency',
     currency: 'PHP',
     minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
   }).format(value);
 
-export function OrderForm({
-  defaultValues,
-  loading = false,
-  onSubmit,
-}: OrderFormProps) {
-  // Fetch all products
-  const { 
-    data: products = [], 
-    isLoading: isLoadingProducts,
-    error: productsError,
-    refetch: refetchProducts
-  } = useProducts();
+const STATUS_COLORS: Record<string, string> = {
+  Critical: 'text-red-500',
+  Low:      'text-amber-500',
+  Normal:   'text-blue-500',
+  High:     'text-green-600',
+};
+
+// ── Product Search Picker ──────────────────────────────────────────────────
+interface ProductPickerProps {
+  products: Product[];
+  value: string;
+  disabledIds: string[];
+  onChange: (id: string) => void;
+  error?: string;
+}
+
+function ProductPicker({ products, value, disabledIds, onChange, error }: ProductPickerProps) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+
+  const selected = products.find(p => p.id === value);
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return products.filter(p =>
+      (p.name.toLowerCase().includes(q) || p.productCode.toLowerCase().includes(q)) &&
+      !disabledIds.includes(p.id)
+    );
+  }, [products, search, disabledIds]);
+
+  const handleSelect = (product: Product) => {
+    onChange(product.id);
+    setOpen(false);
+    setSearch('');
+  };
+
+  const handleClear = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onChange('');
+  };
+
+  return (
+    <div className="relative">
+      {/* Trigger */}
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className={`w-full flex items-center justify-between gap-2 h-9 px-3 rounded-lg border text-[13px] text-left transition-colors
+          ${error ? 'border-red-400' : open ? 'border-amber-400 ring-1 ring-amber-400/30' : 'border-border hover:border-border/80'}
+          bg-white`}
+      >
+        {selected ? (
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <Package className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+            <span className="truncate font-medium text-foreground">{selected.name}</span>
+            <span className="text-[11px] text-muted-foreground flex-shrink-0">{selected.productCode}</span>
+          </div>
+        ) : (
+          <span className="text-muted-foreground">Search product...</span>
+        )}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {selected && (
+            <span
+              onClick={handleClear}
+              className="p-0.5 rounded hover:bg-muted cursor-pointer"
+            >
+              <X className="w-3 h-3 text-muted-foreground" />
+            </span>
+          )}
+          <Search className="w-3.5 h-3.5 text-muted-foreground" />
+        </div>
+      </button>
+
+      {/* Dropdown */}
+      {open && (
+        <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white border border-border rounded-xl shadow-lg overflow-hidden">
+          {/* Search input */}
+          <div className="p-2 border-b border-border">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+              <input
+                autoFocus
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Type to search..."
+                className="w-full pl-8 pr-3 py-1.5 text-[13px] bg-muted/30 rounded-lg border border-border focus:outline-none focus:border-amber-400"
+              />
+            </div>
+          </div>
+
+          {/* Results */}
+          <div className="max-h-52 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <div className="py-6 text-center text-[12px] text-muted-foreground">
+                No products found
+              </div>
+            ) : (
+              filtered.map(product => (
+                <button
+                  key={product.id}
+                  type="button"
+                  onClick={() => handleSelect(product)}
+                  className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-amber-50 transition-colors text-left border-b border-border/30 last:border-0"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Package className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-medium text-foreground truncate">{product.name}</p>
+                      <p className="text-[11px] text-muted-foreground">{product.productCode}</p>
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0 ml-2">
+                    <p className="text-[13px] font-semibold text-foreground">₱{product.sellingPrice.toLocaleString()}</p>
+                    <p className={`text-[11px] font-medium ${STATUS_COLORS[product.status] ?? 'text-muted-foreground'}`}>
+                      {product.quantity} {product.metric}
+                    </p>
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Backdrop */}
+      {open && (
+        <div className="fixed inset-0 z-40" onClick={() => { setOpen(false); setSearch(''); }} />
+      )}
+
+      {error && <p className="mt-1 text-[11px] text-red-500">{error}</p>}
+    </div>
+  );
+}
+
+// ── Main Form ──────────────────────────────────────────────────────────────
+export function OrderForm({ defaultValues, loading = false, onSubmit }: OrderFormProps) {
+  const queryClient = useQueryClient();
+
+  const { data: products = [], isLoading: isLoadingProducts, error: productsError, refetch } = useQuery<Product[]>({
+    queryKey: ['products-all'],
+    queryFn: async () => {
+      const res = await FetchProducts();
+      return res.data;
+    },
+    staleTime: 1000 * 60 * 2,
+  });
 
   const form = useForm<SaleInput>({
     resolver: zodResolver(SaleSchema),
-    defaultValues:
-      defaultValues ?? {
-        items: [
-          {
-            productId: '',
-            quantity: 1,
-          },
-        ],
-        receivedCash: undefined,
-        onlinePayment: false,
-      },
+    defaultValues: defaultValues ?? {
+      items: [{ productId: '', quantity: 1 }],
+      receivedCash: 0,
+      onlinePayment: false,
+    },
   });
 
-  const { fields, append, remove } = useFieldArray({
-    control: form.control,
-    name: 'items',
-  });
-
+  const { fields, append, remove } = useFieldArray({ control: form.control, name: 'items' });
   const watchedItems = useWatch({ control: form.control, name: 'items' }) ?? [];
-
   const receivedCash = Number(useWatch({ control: form.control, name: 'receivedCash' }) ?? 0);
   const onlinePayment = useWatch({ control: form.control, name: 'onlinePayment' }) ?? false;
 
   const productMap = useMemo(() => {
     const map = new Map<string, Product>();
-    products.forEach((product: Product) => {
-      map.set(product.id, product);
-    });
+    products.forEach(p => map.set(p.id, p));
     return map;
   }, [products]);
 
-  const itemSummaries = useMemo(() => {
-    return watchedItems.map((item) => {
-      const product = productMap.get(item.productId);
-      const unitPrice = product?.sellingPrice ?? 0;
-      const quantity = Number(item.quantity || 0);
-      const subtotal = unitPrice * quantity;
+  const itemSummaries = useMemo(() => watchedItems.map(item => {
+    const product = productMap.get(item.productId);
+    const unitPrice = product?.sellingPrice ?? 0;
+    const quantity = Number(item.quantity || 0);
+    return {
+      product,
+      unitPrice,
+      quantity,
+      subtotal: unitPrice * quantity,
+      inStock: (product?.quantity ?? 0) >= quantity,
+      hasProduct: !!product,
+    };
+  }), [watchedItems, productMap]);
 
-      return {
-        product,
-        unitPrice,
-        quantity,
-        subtotal,
-        productName: product?.name ?? 'Unknown Product',
-        inStock: (product?.quantity ?? 0) >= quantity,
-        productId: item.productId,
-        hasProduct: !!product,
-      };
-    });
-  }, [watchedItems, productMap]);
-
-  const grandTotal = useMemo(() => {
-    return itemSummaries.reduce((total, item) => total + item.subtotal, 0);
-  }, [itemSummaries]);
-
+  const grandTotal = useMemo(() => itemSummaries.reduce((t, i) => t + i.subtotal, 0), [itemSummaries]);
   const change = receivedCash - grandTotal;
   const hasCashShortage = !onlinePayment && receivedCash < grandTotal;
-  const hasItems = fields.length > 0 && watchedItems.some(item => item.productId !== '');
-  const hasStockIssues = itemSummaries.some(item => !item.inStock && item.product);
+  const hasItems = fields.length > 0 && watchedItems.some(i => i.productId !== '');
+  const hasStockIssues = itemSummaries.some(i => !i.inStock && i.product);
+  const selectedIds = watchedItems.map(i => i.productId).filter(Boolean);
 
-  const selectedProductIds = watchedItems
-    .map(item => item.productId)
-    .filter(id => id !== '');
-
-  // ✅ Fixed: Filter available products with proper type
-  const availableProducts = useMemo(() => {
-    return products.filter((product: Product) => !selectedProductIds.includes(product.id));
-  }, [products, selectedProductIds]);
-
-  const handleAddItem = useCallback(() => {
-    append({
-      productId: '',
-      quantity: 1,
-    });
-  }, [append]);
-
-  const handleRemoveItem = useCallback((index: number) => {
-    if (fields.length > 1) {
-      remove(index);
-    }
-  }, [fields.length, remove]);
-
-  const handleSubmit = form.handleSubmit((data) => {
-      console.log('Submitting payload:', JSON.stringify(data, null, 2)); // ← add this
+  const handleSubmit = form.handleSubmit(async (data) => {
     if (!hasItems) {
-      form.setError('root', {
-        type: 'manual',
-        message: 'Please add at least one product to the order',
-      });
+      form.setError('root', { message: 'Please add at least one product.' });
       return;
-
     }
-
     if (hasStockIssues) {
-      form.setError('root', {
-        type: 'manual',
-        message: 'One or more items exceed available stock',
-      });
+      form.setError('root', { message: 'One or more items exceed available stock.' });
       return;
     }
-
     if (!onlinePayment && data.receivedCash < grandTotal) {
-      form.setError('receivedCash', {
-        type: 'manual',
-        message: 'Received cash must cover the order total',
-      });
+      form.setError('receivedCash', { message: 'Received cash must cover the order total.' });
       return;
     }
-
-    void onSubmit(data);
+    await onSubmit(data);
+    // invalidate products so quantity updates in inventory
+    queryClient.invalidateQueries({ queryKey: ['products'] });
+    queryClient.invalidateQueries({ queryKey: ['products-all'] });
   });
 
-  // Loading state
   if (isLoadingProducts) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        <span className="ml-2 text-muted-foreground">Loading products...</span>
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mr-2" />
+        <span className="text-[13px] text-muted-foreground">Loading products...</span>
       </div>
     );
   }
 
-  // Error state
   if (productsError) {
     return (
       <Alert variant="destructive">
         <AlertCircle className="h-4 w-4" />
-        <AlertDescription>
-          Failed to load products. Please refresh the page.
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="ml-2"
-            onClick={() => refetchProducts()}
-          >
-            Retry
-          </Button>
+        <AlertDescription className="flex items-center justify-between">
+          Failed to load products.
+          <Button variant="outline" size="sm" onClick={() => refetch()}>Retry</Button>
         </AlertDescription>
       </Alert>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-5">
+
       {form.formState.errors.root && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
@@ -201,165 +267,86 @@ export function OrderForm({
         </Alert>
       )}
 
-      <div className="space-y-4">
+      {/* Items */}
+      <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold flex items-center gap-2">
-              <ShoppingBag className="h-5 w-5" />
-              Order Items
-            </h3>
-            <p className="text-sm text-muted-foreground">
-              Choose products, adjust quantities, and see the live pricing.
-            </p>
+          <div className="flex items-center gap-2">
+            <ShoppingBag className="h-4 w-4 text-amber-500" />
+            <h3 className="text-[14px] font-semibold">Order Items</h3>
           </div>
-          <span className="rounded-full bg-muted px-3 py-1 text-sm font-medium">
-            {fields.length} item{fields.length === 1 ? '' : 's'}
+          <span className="text-[11px] bg-muted px-2 py-0.5 rounded-full text-muted-foreground">
+            {fields.length} item{fields.length !== 1 ? 's' : ''}
           </span>
         </div>
 
-        {fields.map((field, index) => {
-          const summary = itemSummaries[index] ?? {
-            product: undefined,
-            unitPrice: 0,
-            quantity: 0,
-            subtotal: 0,
-            productName: 'Unknown Product',
-            inStock: true,
-            productId: '',
-            hasProduct: false,
-          };
+        {/* Header row */}
+        <div className="grid grid-cols-12 gap-3 px-1">
+          <div className="col-span-7 text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Product</div>
+          <div className="col-span-2 text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Qty</div>
+          <div className="col-span-2 text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Subtotal</div>
+          <div className="col-span-1" />
+        </div>
 
-          const currentProductId = form.watch(`items.${index}.productId`) ?? '';
-          const hasProduct = currentProductId !== '' && summary.hasProduct;
+        {fields.map((field, index) => {
+          const summary = itemSummaries[index];
+          const currentId = form.watch(`items.${index}.productId`) ?? '';
+          const otherSelectedIds = selectedIds.filter((_, i) => i !== index);
 
           return (
             <div
               key={field.id}
-              className={`grid grid-cols-12 gap-3 rounded-lg border p-3 transition-all duration-300 ${
-                summary.product && !summary.inStock
-                  ? 'border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/20'
-                  : hasProduct
-                  ? 'border-green-300 bg-green-50/30 dark:border-green-800 dark:bg-green-950/10 shadow-sm'
-                  : 'border-border/60 bg-background hover:border-border'
-              }`}
+              className={`grid grid-cols-12 gap-3 items-start p-3 rounded-xl border transition-colors
+                ${summary?.product && !summary.inStock
+                  ? 'border-red-200 bg-red-50'
+                  : summary?.hasProduct
+                  ? 'border-green-200 bg-green-50/30'
+                  : 'border-border bg-white'}`}
             >
-              <div className="col-span-12 md:col-span-7">
-                <label className="mb-1 block text-sm font-medium">Product</label>
-
-                <Select
-                  value={currentProductId}
-                  onValueChange={(value) => {
-                    form.setValue(`items.${index}.productId`, value, {
-                      shouldDirty: true,
-                      shouldValidate: true,
-                    });
-                  }}
-                >
-                  <SelectTrigger 
-                    className={`transition-all ${
-                      form.formState.errors.items?.[index]?.productId 
-                        ? 'border-red-500' 
-                        : hasProduct
-                        ? 'border-green-400 dark:border-green-600'
-                        : ''
-                    }`}
-                  >
-                    <SelectValue placeholder="Select product" />
-                  </SelectTrigger>
-
-                  <SelectContent>
-                    {products.map((product: Product) => {
-                      const isSelected = selectedProductIds.includes(product.id) && 
-                                        product.id !== currentProductId;
-                      return (
-                        <SelectItem 
-                          key={product.id} 
-                          value={product.id}
-                          disabled={isSelected}
-                          className={isSelected ? 'opacity-50' : ''}
-                        >
-                          <div className="flex items-center justify-between w-full">
-                            <span>{product.name}</span>
-                            <span className="text-xs text-muted-foreground ml-2">
-                              ₱{product.sellingPrice} | Stock: {product.quantity}
-                            </span>
-                          </div>
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-
-                {form.formState.errors.items?.[index]?.productId && (
-                  <p className="mt-1 text-sm text-red-500">
-                    {form.formState.errors.items[index]?.productId?.message}
+              {/* Product picker */}
+              <div className="col-span-7">
+                <ProductPicker
+                  products={products}
+                  value={currentId}
+                  disabledIds={otherSelectedIds}
+                  onChange={val => form.setValue(`items.${index}.productId`, val, { shouldValidate: true })}
+                  error={form.formState.errors.items?.[index]?.productId?.message}
+                />
+                {summary?.product && !summary.inStock && (
+                  <p className="mt-1 text-[11px] text-red-500">
+                    ⚠ Only {summary.product.quantity} in stock
                   </p>
                 )}
               </div>
 
-              <div className="col-span-6 md:col-span-2">
-                <label className="mb-1 block text-sm font-medium">Quantity</label>
-
-             <Input
-                type="number"
-                min={1}
-                max={summary.product?.quantity ?? 999}
-                className={form.formState.errors.items?.[index]?.quantity ? 'border-red-500' : ''}
-                value={form.watch(`items.${index}.quantity`) ?? 1}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  form.setValue(
-                    `items.${index}.quantity`,
-                    Number(e.target.value) || 1,
-                    { shouldDirty: true, shouldValidate: true }
-                  )
-                }
-              />
-
-                {form.formState.errors.items?.[index]?.quantity && (
-                  <p className="mt-1 text-sm text-red-500">
-                    {form.formState.errors.items[index]?.quantity?.message}
-                  </p>
-                )}
-                
-                {summary.product && !summary.inStock && (
-                  <p className="mt-1 text-sm text-red-500">
-                    ⚠️ Only {summary.product.quantity} in stock
-                  </p>
-                )}
+              {/* Quantity */}
+              <div className="col-span-2">
+                <Input
+                  type="number"
+                  min={1}
+                  max={summary?.product?.quantity ?? 999}
+                  className={`h-9 text-[13px] ${form.formState.errors.items?.[index]?.quantity ? 'border-red-400' : ''}`}
+                  value={form.watch(`items.${index}.quantity`) ?? 1}
+                  onChange={e => form.setValue(`items.${index}.quantity`, Number(e.target.value) || 1, { shouldValidate: true })}
+                />
               </div>
 
-              <div className="col-span-6 md:col-span-2">
-                <div className={`rounded-md border p-3 text-sm transition-all duration-300 ${
-                  hasProduct 
-                    ? 'border-green-200 bg-green-50/50 dark:border-green-800 dark:bg-green-950/20 shadow-sm' 
-                    : 'border-border/60 bg-muted/40'
-                }`}>
-                  <div className="text-muted-foreground">Price</div>
-                  <div className={`font-semibold transition-all duration-300 ${
-                    hasProduct ? 'text-green-600 dark:text-green-400 text-base' : ''
-                  }`}>
-                    {formatCurrency(summary.unitPrice)}
-                  </div>
-                  <div className="mt-2 text-muted-foreground">Subtotal</div>
-                  <div className={`font-semibold transition-all duration-300 ${
-                    hasProduct ? 'text-green-600 dark:text-green-400 text-base' : ''
-                  }`}>
-                    {formatCurrency(summary.subtotal)}
-                  </div>
-                </div>
+              {/* Subtotal */}
+              <div className="col-span-2 h-9 flex items-center">
+                <span className={`text-[13px] font-semibold ${summary?.hasProduct ? 'text-green-600' : 'text-muted-foreground'}`}>
+                  {formatCurrency(summary?.subtotal ?? 0)}
+                </span>
               </div>
 
-              <div className="col-span-12 md:col-span-1 flex justify-end items-start">
-                <Button
+              {/* Remove */}
+              <div className="col-span-1 flex justify-end">
+                <button
                   type="button"
-                  variant="destructive"
-                  size="icon"
                   disabled={fields.length === 1}
-                  onClick={() => handleRemoveItem(index)}
-                  className="mt-1"
+                  onClick={() => remove(index)}
+                  className="w-9 h-9 flex items-center justify-center rounded-lg border border-red-200 text-red-400 hover:bg-red-50 disabled:opacity-30 transition-colors"
                 >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
               </div>
             </div>
           );
@@ -368,117 +355,103 @@ export function OrderForm({
         <Button
           type="button"
           variant="outline"
-          onClick={handleAddItem}
-          className="w-full sm:w-auto"
-          disabled={availableProducts.length === 0}
+          size="sm"
+          onClick={() => append({ productId: '', quantity: 1 })}
+          disabled={selectedIds.length >= products.length}
+          className="h-8 text-[12px] gap-1.5"
         >
-          <Plus className="mr-2 h-4 w-4" />
-          Add Item {availableProducts.length === 0 && '(All products added)'}
+          <Plus className="w-3.5 h-3.5" />
+          Add Item
         </Button>
       </div>
 
-      <Card className="space-y-4 p-4 sm:p-6">
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-4">
+      {/* Payment */}
+      <Card className="p-4 space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+
+          {/* Left: inputs */}
+          <div className="space-y-3">
             <div>
-              <label className="mb-1 block text-sm font-medium">Received Cash</label>
-           <Input
-              type="number"
-              step="0.01"
-              placeholder="₱100.00"
-              className={form.formState.errors.receivedCash ? 'border-red-500' : ''}
-              {...form.register('receivedCash', {
-                valueAsNumber: true,
-              })}
-              defaultValue=""
-            />
-              {form.formState.errors.receivedCash && (
-                <p className="mt-1 text-sm text-red-500">
-                  {form.formState.errors.receivedCash?.message}
-                </p>
-              )}
+              <label className="block text-[12px] font-medium mb-1">Payment method</label>
+              <div className="flex gap-2">
+                {(['cash', 'online'] as const).map(method => (
+                  <button
+                    key={method}
+                    type="button"
+                    onClick={() => form.setValue('onlinePayment', method === 'online', { shouldValidate: true })}
+                    className={`flex-1 h-9 rounded-lg border text-[13px] font-medium transition-colors capitalize
+                      ${(method === 'online') === onlinePayment
+                        ? 'bg-amber-500 border-amber-500 text-white'
+                        : 'border-border text-muted-foreground hover:border-amber-300'}`}
+                  >
+                    {method}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <div>
-              <label className="mb-1 block text-sm font-medium">Payment Method</label>
-
-              <Select
-                value={onlinePayment ? 'online' : 'cash'}
-                onValueChange={(value) =>
-                  form.setValue('onlinePayment', value === 'online', {
-                    shouldDirty: true,
-                    shouldValidate: true,
-                  })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-
-                <SelectContent>
-                  <SelectItem value="cash">Cash</SelectItem>
-                  <SelectItem value="online">Online</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {!onlinePayment && (
+              <div>
+                <label className="block text-[12px] font-medium mb-1">Received cash</label>
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[13px] text-muted-foreground">₱</span>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    className={`h-9 text-[13px] pl-6 ${form.formState.errors.receivedCash ? 'border-red-400' : ''}`}
+                    {...form.register('receivedCash', { valueAsNumber: true })}
+                  />
+                </div>
+                {form.formState.errors.receivedCash && (
+                  <p className="mt-1 text-[11px] text-red-500">{form.formState.errors.receivedCash.message}</p>
+                )}
+              </div>
+            )}
           </div>
 
-          <div className="rounded-lg border border-border/60 bg-muted/40 p-4 space-y-3">
-            <div className="flex items-center justify-between text-sm">
+          {/* Right: summary */}
+          <div className="bg-muted/30 rounded-xl border border-border p-4 space-y-2">
+            <div className="flex justify-between text-[13px]">
               <span className="text-muted-foreground">Items</span>
-              <span className="font-medium">{fields.length} item{fields.length === 1 ? '' : 's'}</span>
+              <span className="font-medium">{fields.length}</span>
             </div>
-
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Grand Total</span>
-              <span className="text-lg font-semibold text-foreground">{formatCurrency(grandTotal)}</span>
+            <div className="flex justify-between text-[13px] border-t border-border pt-2">
+              <span className="text-muted-foreground">Total</span>
+              <span className="font-bold text-[15px]">{formatCurrency(grandTotal)}</span>
             </div>
-
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Change</span>
-              <span className={`text-lg font-semibold ${change >= 0 ? 'text-green-600' : 'text-amber-600'}`}>
-                {formatCurrency(change)}
-              </span>
-            </div>
-
+            {!onlinePayment && (
+              <div className="flex justify-between text-[13px]">
+                <span className="text-muted-foreground">Change</span>
+                <span className={`font-semibold ${change >= 0 ? 'text-green-600' : 'text-amber-600'}`}>
+                  {formatCurrency(change)}
+                </span>
+              </div>
+            )}
             {!onlinePayment && grandTotal > 0 && (
-              <div
-                className={`mt-2 rounded-md border px-3 py-2 text-sm ${
-                  hasCashShortage
-                    ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/30'
-                    : 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30'
-                }`}
-              >
+              <div className={`text-[11px] px-2 py-1.5 rounded-lg text-center font-medium
+                ${hasCashShortage
+                  ? 'bg-amber-50 border border-amber-200 text-amber-700'
+                  : 'bg-green-50 border border-green-200 text-green-700'}`}>
                 {hasCashShortage
                   ? `Still due: ${formatCurrency(grandTotal - receivedCash)}`
-                  : 'Cash is sufficient for this order.'}
+                  : '✓ Cash sufficient'}
               </div>
             )}
           </div>
         </div>
       </Card>
 
-      <Button 
-        type="submit" 
-        className="w-full" 
-        disabled={
-          loading || 
-          (hasCashShortage && !onlinePayment) || 
-          !hasItems || 
-          hasStockIssues
-        }
+      <Button
+        type="submit"
+        className="w-full bg-amber-500 hover:bg-amber-600 text-white"
         size="lg"
+        disabled={loading || (hasCashShortage && !onlinePayment) || !hasItems || hasStockIssues}
       >
         {loading ? (
-          <>
-            <span className="mr-2 inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
-            Saving...
-          </>
+          <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</>
         ) : (
-          <>
-           
-            Submit Order
-          </>
+          'Submit Order'
         )}
       </Button>
     </form>

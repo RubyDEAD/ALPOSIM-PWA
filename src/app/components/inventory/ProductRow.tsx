@@ -55,6 +55,7 @@ export default function ProductRow({
         <StockBar
           quantity={product.quantity}
           minQuantity={product.minQuantity}
+          status={product.status}
         />
       </TableCell>
       
