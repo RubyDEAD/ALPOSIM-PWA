@@ -24,7 +24,7 @@ export default function InventoryPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [stockLevel, setStockLevel] = useState("All");
-  const [categoryFilter, setCategoryFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("All");
   const [activeTab, setActiveTab] = useState("all");
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -40,14 +40,16 @@ export default function InventoryPage() {
     staleTime: 1000 * 60 * 5,
   });
 
-const { data: productData, isLoading } = useQuery({
-  queryKey: ["products", page, stockLevel, categoryFilter, search],
-  queryFn: async () => {
-    const categoryId = categoryFilter === "All" ? undefined : Number(categoryFilter);
-    const res = await FetchProductPaginated(page, LIMIT, stockLevel, categoryId, search);
-    return res.data;
-  },
-});
+  // fetch products
+  const { data: productData, isLoading } = useQuery({
+    queryKey: ["products", page, stockLevel, categoryFilter, search],
+    queryFn: async () => {
+      const res = await FetchProductPaginated(page, LIMIT, stockLevel, 
+        categoryFilter === "All" ? undefined : Number(categoryFilter), 
+        search);
+      return res.data;
+    },
+  });
 
   const products: Product[] = productData?.items ?? [];
   const totalCount: number = productData?.totalCount ?? 0;
